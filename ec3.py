@@ -20,6 +20,11 @@ def fitness_population(target, population):
     return np.array([f(individual, target) for individual in population])
 
 
+def mean_hamming_distance(target, population):
+    """Return the mean hamming distance of the population with the target."""
+    return np.mean([sum(individual != target) for individual in population])
+
+
 def init_tournament(tournament_size, population_size):
     """Return a list of (N / 2, 2, K) representing all the N / 2 tournaments."""
     return np.random.randint(population_size, size=(population_size // 2, 2, tournament_size))
@@ -69,21 +74,25 @@ def run_genetic_search(
     """Run the genetic string search algorithm."""
     population = init_population(alphabet, entity_size, population_size)
     generation = 0
+    population_diversity = np.zeros(max_iter // 10 + 1)
 
-    while generation < max_iter:
+    while generation <= max_iter:
         population = tournament(
             tournament_size, population, population_size, mutation_prob, target, alphabet
         )
 
+        if generation % 10 == 0:
+            population_diversity[generation // 10] = mean_hamming_distance(target, population)
+
         if target_found(target, population):
-            return generation, True
+            return generation, True, population_diversity
 
         generation += 1
 
-    return generation, False
+    return generation, False, population_diversity
 
 
-def plot(results, mutation_probs, max_iter):
+def plot_generations(results, mutation_probs, max_iter):
     for index, mutation_prob in enumerate(mutation_probs):
         converged = results[index, results[index, :, 1] == True][:, 0]
         limit = results[index, results[index, :, 1] == False][:, 0]
@@ -101,7 +110,28 @@ def plot(results, mutation_probs, max_iter):
     plt.ylabel('#generations')
     plt.xlabel('$\mu$')
 
+    # plt.legend() # FIXME
+
     plt.savefig('results3/1.png')
+    plt.show()
+
+
+def plot_diversity(results, mutation_probs, max_iter):
+    colors = plt.cm.viridis(np.linspace(0, 1, len(mutation_probs)))
+    for index, mutation_prob in enumerate(mutation_probs):
+        for run_index, run in enumerate(results[index]):
+            run = [value for value in run if value > 0]
+            plt.plot(
+                np.arange(len(run)) * 10, run, color=colors[index],
+                label=f'$\mu = {mutation_probs[index]}$' if run_index == 0 else ""
+            )
+
+    plt.ylabel('mean hamming distance')
+    plt.xlabel('generation')
+
+    plt.legend()
+
+    plt.savefig('results3/2.png')
     plt.show()
 
 
@@ -121,20 +151,29 @@ def main():
     mutation_probs = [0, 1 / entity_size, 3 / entity_size]
 
     max_iter = 100
-    repetitions = 50
+    repetitions = 10
 
     # run the experiments
-    results = np.array([
-        [
-            run_genetic_search(
+    generation_results = []
+    diversity_results = []
+
+    for mutation_prob in mutation_probs:
+        generation_results.append([])
+        diversity_results.append([])
+
+        for _ in range(repetitions):
+            generation, converged, diversities = run_genetic_search(
                 alphabet, tournament_size, entity_size, target, mutation_prob, population_size, max_iter
             )
-            for _ in range(repetitions)
-        ] for mutation_prob in mutation_probs
-    ])
+            generation_results[-1].append((generation, converged))
+            diversity_results[-1].append(diversities)
+
+    generation_results = np.array(generation_results)
+    diversity_results = np.array(diversity_results)
 
     # plot the results
-    plot(results, mutation_probs, max_iter)
+    plot_generations(generation_results, mutation_probs, max_iter)
+    plot_diversity(diversity_results, mutation_probs, max_iter)
 
 
 if __name__ == '__main__':
