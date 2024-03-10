@@ -104,15 +104,21 @@ def plot_generations(results, mutation_probs, max_iter):
 
         plt.vlines(mutation_prob, 0, max_iter, linestyles='--')
 
-        plt.scatter(noise_converged + [mutation_prob] * len(converged), converged, color='darkgreen', label='converged')
-        plt.scatter(noise_limit + [mutation_prob] * len(limit), limit, color='darkred', label='max iter')
+        plt.scatter(
+            noise_converged + [mutation_prob] * len(converged), converged,
+            color='darkgreen', label='converged' if index == 0 else ""
+        )
+        plt.scatter(
+            noise_limit + [mutation_prob] * len(limit), limit,
+            color='darkred', label='max iter' if index == 0 else ""
+        )
 
-    plt.ylabel('#generations')
+    plt.ylabel('generation')
     plt.xlabel('$\mu$')
 
-    # plt.legend() # FIXME
+    plt.legend()
 
-    plt.savefig('results3/1.png')
+    plt.savefig('results3/5.png')
     plt.show()
 
 
@@ -123,15 +129,16 @@ def plot_diversity(results, mutation_probs, max_iter):
             run = [value for value in run if value > 0]
             plt.plot(
                 np.arange(len(run)) * 10, run, color=colors[index],
-                label=f'$\mu = {mutation_probs[index]}$' if run_index == 0 else ""
+                label=f'$\mu = {mutation_probs[index]:.3f}$' if run_index == 0 else ""
             )
 
     plt.ylabel('mean hamming distance')
     plt.xlabel('generation')
 
-    plt.legend()
+    plt.legend(bbox_to_anchor = (1.3, 0.5), loc='center right')
+    plt.subplots_adjust(right=0.8)
 
-    plt.savefig('results3/2.png')
+    plt.savefig('results3/6.png')
     plt.show()
 
 
@@ -140,7 +147,7 @@ def main():
 
     # set experiment search parameters
     alphabet = np.array(list(string.ascii_letters))
-    tournament_size = 2
+    tournament_size = 5
 
     entity_size = 15
     target = np.random.choice(alphabet, size=entity_size)
@@ -148,7 +155,8 @@ def main():
     population_size = 200
 
     # set experiment hyperparameters
-    mutation_probs = [0, 1 / entity_size, 3 / entity_size]
+    # mutation_probs = [0, 1 / entity_size, 3 / entity_size]
+    mutation_probs = np.linspace(0, 3 / entity_size, 10)
 
     max_iter = 100
     repetitions = 10
