@@ -8,7 +8,7 @@ from itertools import combinations
 fig_dir = 'results4/'
 
 
-def ma(N, K, mu, mu_cross, coordinates, n_iter, n_trials, swap_frac):
+def ea(N, K, mu, mu_cross, coordinates, n_iter, n_trials, swap_frac, local_search):
 	# Implements the evolutionary algorithm covered in the lecture
 
 	n_locations = coordinates.shape[0]
@@ -25,9 +25,10 @@ def ma(N, K, mu, mu_cross, coordinates, n_iter, n_trials, swap_frac):
 
 		current_solution_pool = current_solution_pool.astype(int)
 
-		# Performing local search for each candidate solution
-		for solution in current_solution_pool:
-			solution = opt_swap(solution, coordinates, swap_frac)
+		if local_search:
+			# Performing local search for each candidate solution
+			for solution in current_solution_pool:
+				solution = opt_swap(solution, coordinates, swap_frac)
 
 		# For storing everything throughout the trial
 		fitnesses = np.zeros((n_iter+1, N))
@@ -51,12 +52,11 @@ def ma(N, K, mu, mu_cross, coordinates, n_iter, n_trials, swap_frac):
 				child_1 = mutation(child_1, mu)
 				child_2 = mutation(child_2, mu)
 
-				# Performing local search to potentially improve
-				# the children
-				child_1 = opt_swap(child_1, coordinates, swap_frac)
-				child_2 = opt_swap(child_2, coordinates, swap_frac)
-				if np.all(child_1==0):
-					print('mistake 1')
+				if local_search:
+					# Performing local search to potentially improve
+					# the children
+					child_1 = opt_swap(child_1, coordinates, swap_frac)
+					child_2 = opt_swap(child_2, coordinates, swap_frac)
 
 				new_solutions[j] = child_1
 				new_solutions[j+1] = child_2
@@ -73,9 +73,6 @@ def ma(N, K, mu, mu_cross, coordinates, n_iter, n_trials, swap_frac):
 			fittest_solutions = np.flip(
 				np.argsort(current_and_previous_fitnesses))[:N]
 			new_solutions = current_and_previous_solutions[fittest_solutions,:]
-
-			if np.all(new_solutions == 0):
-				print('mistake2')
 
 			# Changing the variable because we reuse it in the next iteration
 			current_solution_pool = new_solutions
@@ -119,72 +116,6 @@ def opt_swap(permutation, coordinates, swap_frac):
 			permutation[swap] = permutation[np.flip(swap)]
 
 	return permutation
-
-def ea(N, K, mu, mu_cross, coordinates, n_iter, n_trials):
-	# Implements the evolutionary algorithm covered in the lecture
-
-	n_locations = coordinates.shape[0]
-
-	fitnesses_over_trials = np.zeros((n_trials, n_iter+1, N))
-	solutions_over_trials = np.zeros((n_trials, n_iter+1, N, n_locations))
-
-	for k in tqdm(range(n_trials)):
-		# Generate a population of N candidate solutions
-		current_solution_pool = np.zeros((N, n_locations))
-		for i in range(N):
-			current_solution_pool[i] = np.random.choice(
-				np.arange(0, n_locations), n_locations, replace=False)
-
-		current_solution_pool = current_solution_pool.astype(int)
-
-		# For storing info throughout the trial
-		fitnesses = np.zeros((n_iter+1, N))
-		solutions = np.zeros((n_iter+1, N, n_locations))
-
-		# Evaluate the current solutions
-		for i, solution in enumerate(current_solution_pool):
-			fitnesses[0, i] = get_fitness(solution, coordinates)
-			solutions[0, i, :] = solution
-
-		for i in range(n_iter):
-			# Perform tournament selection to create a completely new
-			# generation
-			new_solutions = np.zeros_like(current_solution_pool)
-			for j in range(0, N, 2):
-				# Select parents using tournament selection
-				parent_1 = tournament_selection(current_solution_pool, K, coordinates)
-				parent_2 = tournament_selection(current_solution_pool, K, coordinates)
-
-				# Crossover and mutation
-				child_1, child_2 = order_crossover(parent_1, parent_2, mu_cross)
-				child_1 = mutation(child_1, mu)
-				child_2 = mutation(child_2, mu)
-
-				new_solutions[j] = child_1
-				new_solutions[j+1] = child_2
-
-				fitnesses[i+1, j] = get_fitness(child_1, coordinates)
-				fitnesses[i+1, j+1] = get_fitness(child_2, coordinates)
-
-			# Update the generation, keeping only the fittest
-			current_and_previous_fitnesses = \
-				np.concatenate((fitnesses[i], fitnesses[i+1]), axis=0)
-			current_and_previous_solutions = \
-				np.concatenate((current_solution_pool, new_solutions), axis=0)
-
-			fittest_solutions = np.flip(
-				np.argsort(current_and_previous_fitnesses))[:N]
-			new_solutions = current_and_previous_solutions[fittest_solutions,:]
-
-			# Changing the variable because we reuse it in the next iteration
-			current_solution_pool = new_solutions
-			solutions[i+1] = current_solution_pool
-
-		fitnesses_over_trials[k] = fitnesses
-		solutions_over_trials[k] = solutions
-
-	return fitnesses_over_trials, solutions_over_trials
-
 
 def get_fitness(permutation, coordinates):
 	# Generate an array of the coordinate indices between which
@@ -394,7 +325,7 @@ if __name__ == '__main__':
 	coordinates = np.loadtxt('file-tsp.txt')
 	fitnesses_over_trials, solutions_over_trials = \
 		ea(N=N, K=K, mu=mu, mu_cross=mu_cross, coordinates=coordinates,
-			n_iter = n_iter, n_trials = n_trials)
+			n_iter = n_iter, n_trials = n_trials, swap_frac=0, local_search=False)
 	np.save(os.path.join(fig_dir, 'fitnesses_over_trials_ea_50'), fitnesses_over_trials)
 	np.save(os.path.join(fig_dir, 'solutions_over_trials_ea_50'), solutions_over_trials)
 
@@ -403,8 +334,8 @@ if __name__ == '__main__':
 
 	# Memetic algorithm on example problem
 	fitnesses_over_trials, solutions_over_trials = \
-		ma(N=N, K=K, mu=mu, mu_cross=mu_cross, coordinates=coordinates,
-			n_iter = n_iter, n_trials = n_trials, swap_frac=0.2)
+		ea(N=N, K=K, mu=mu, mu_cross=mu_cross, coordinates=coordinates,
+			n_iter = n_iter, n_trials = n_trials, swap_frac=0.2, local_search=True)
 	np.save(os.path.join(fig_dir, 'fitnesses_over_trials_ma_50'), fitnesses_over_trials)
 	np.save(os.path.join(fig_dir, 'solutions_over_trials_ma_50'), solutions_over_trials)
 
@@ -426,7 +357,7 @@ if __name__ == '__main__':
 	
 	fitnesses_over_trials, solutions_over_trials = \
 		ea(N=N, K=K, mu=mu, mu_cross=mu_cross, coordinates=coordinates,
-			n_iter = n_iter, n_trials = n_trials)
+			n_iter = n_iter, n_trials = n_trials, swap_frac=0, local_search=False)
 
 	np.save(os.path.join(fig_dir, 'fitnesses_over_trials_ea_16'), fitnesses_over_trials)
 	np.save(os.path.join(fig_dir, 'solutions_over_trials_ea_16'), solutions_over_trials)
@@ -438,8 +369,8 @@ if __name__ == '__main__':
 	# Memetic algorithm on other small external problem
 	
 	fitnesses_over_trials, solutions_over_trials = \
-		ma(N=N, K=K, mu=mu, mu_cross=mu_cross, coordinates=coordinates,
-			n_iter = n_iter, n_trials = n_trials, swap_frac=0.2)
+		ea(N=N, K=K, mu=mu, mu_cross=mu_cross, coordinates=coordinates,
+			n_iter = n_iter, n_trials = n_trials, swap_frac=0.2, local_search=True)
 
 	np.save(os.path.join(fig_dir, 'fitnesses_over_trials_ma_16'), fitnesses_over_trials)
 	np.save(os.path.join(fig_dir, 'solutions_over_trials_ma_16'), solutions_over_trials)
